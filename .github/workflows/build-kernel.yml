@@ -130,13 +130,11 @@ jobs:
           mkdir -p "$KSRC/vendor/oppo_charger/oppo"
           ln -sfn "$K/drivers/power/oppo/charger_ic" "$KSRC/vendor/oppo_charger/oppo/charger_ic"
           ls -l "$KSRC/vendor/oppo_charger/oppo/"
-          # OPPO 注释掉了 qcom 的 smb5-lib.o，但他们的 charger_ic 与 schgm-flash 互相依赖，
-          # 需要把 smb5-lib.o 加回活跃行，才能同时提供 smblib_* 与 schgm_flash_*
+          # OPPO 的 charger_ic 自己实现了 smblib_*（mdelay 等寄存器读写），
+          # 所以不要加回 qcom 的 smb5-lib.o——它的头文件会和 oppo_battery_msm7250_Q.h 的枚举冲突。
+          # schgm-flash.o 必须保留：oppo_battery_msm7250_Q.c 反过来依赖 schgm_flash_*。
           Q="$K/drivers/power/supply/qcom/Makefile"
-          if grep -q 'smb5-lib\.o' "$Q"; then
-            sed -i 's#^\(obj-\$(CONFIG_QPNP_SMB5)[^#]*schgm-flash\.o\)#\1 smb5-lib.o#' "$Q"
-            grep -n 'smb5-lib.o' "$Q" || true
-          fi
+          grep -n 'CONFIG_QPNP_SMB5' "$Q" | head -3 || true
           # 通用修：凡是用 copy_to_user/copy_from_user 却没包含 uaccess.h 的 .c，统一补头
           fixed=0
           while IFS= read -r f; do
