@@ -38,7 +38,6 @@ permissions:
 
 env:
   ARCH: arm64
-  LOCALVERSION: '-perf+'
 
 jobs:
   build:
@@ -57,7 +56,6 @@ jobs:
         CC=clang CLANG_TRIPLE=aarch64-linux-gnu-
         CROSS_COMPILE=aarch64-linux-android-
         CROSS_COMPILE_ARM32=arm-linux-androideabi-
-        LOCALVERSION=-perf+
         HOSTCFLAGS=-fcommon
 
     steps:
