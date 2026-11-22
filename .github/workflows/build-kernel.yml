@@ -53,6 +53,7 @@ jobs:
         CROSS_COMPILE_ARM32=arm-linux-androideabi-
         LOCALVERSION=-perf+
         HOSTCFLAGS=-fcommon
+        KCFLAGS=-Wno-error=implicit-function-declaration -Wno-error=implicit-int -Wno-error=incompatible-pointer-types
 
     steps:
       - uses: actions/checkout@v4
@@ -114,6 +115,12 @@ jobs:
             echo "已补 shim: include/soc/qcom/smem.h"
           fi
           ls -l "$K/include/soc/qcom/smem.h" || true
+          # oppo_secure_common.c 少了 uaccess.h（157 那版靠间接包含），直接补
+          U="$K/drivers/input/oppo_seccommon_drivers/oppo_secure_common.c"
+          if [ -f "$U" ] && ! grep -q 'linux/uaccess.h' "$U"; then
+            sed -i '1i #include <linux/uaccess.h>' "$U"
+            echo "已补 include: oppo_secure_common.c"
+          fi
 
       - name: 对齐内核版本号（vermagic 必须与机内模块一致）
         working-directory: ${{ github.workspace }}
