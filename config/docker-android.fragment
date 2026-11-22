@@ -17,3 +17,6 @@ CONFIG_OPPO_COMMON_SOFT=y
 
 # Android 的 paranoid network 会按 gid 拦 socket，容器里网络直接不通
 # CONFIG_ANDROID_PARANOID_NETWORK is not set
+
+# 让 section mismatch 只告警不致命（OPPO 代码里 init/exit 标注本来就不干净）
+CONFIG_SECTION_MISMATCH_WARN_ONLY=y
