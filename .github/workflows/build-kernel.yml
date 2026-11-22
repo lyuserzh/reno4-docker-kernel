@@ -117,7 +117,7 @@ jobs:
           ls -l "$K/include/soc/qcom/smem.h" || true
           # oppo_secure_common.c 少了 uaccess.h（157 那版靠间接包含），直接补
           U="$K/drivers/input/oppo_seccommon_drivers/oppo_secure_common.c"
-          if [ -f "$U" ] && ! grep -q 'linux/uaccess.h' "$U"; then
+          if [ -f "$U" ] && ! grep -qx '#include <linux/uaccess.h>' "$U"; then
             sed -i '1i #include <linux/uaccess.h>' "$U"
             echo "已补 include: oppo_secure_common.c"
           fi
