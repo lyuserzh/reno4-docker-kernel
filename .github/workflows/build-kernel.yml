@@ -16,9 +16,14 @@ on:
         description: '强制对齐的内核次版本号（机内是 157，保证 vermagic 一致）'
         required: true
         default: '157'
-      base_config:
+      defconfig:
+        description: '源码自带 defconfig（走这条路能保证链接通过）'
         required: true
-        default: 'config/reno4-4.19.157-working.config'
+        default: 'vendor/lito-perf_defconfig'
+      base_config:
+        description: '可选：用某份完整 .config 做基线（留空则用上面的 defconfig）'
+        required: false
+        default: ''
       boot_img_url:
         description: '原厂 boot.img 直链（出 boot-docker.img 用）'
         required: false
@@ -138,18 +143,25 @@ jobs:
           # 这里只对齐版本号：vermagic 由 Makefile 版本 + LOCALVERSION 决定，模块加载只看这个字符串。
           echo "预期 UTS_RELEASE: $(grep -E '^SUBLEVEL' Makefile | grep -oE '[0-9]+') 见 LOCALVERSION"
 
-      - name: 生成配置（真实可用配置 + Docker 补丁）
+      - name: 生成配置（defconfig 或指定 .config + Docker 补丁）
         working-directory: ${{ github.workspace }}
         run: |
           set -euo pipefail
           export PATH="$TC/clang/bin:$TC/gcc/bin:$PATH"
           mkdir -p "$OUT"
-          cp "${{ inputs.base_config }}" "$OUT/.config"
           cd "$KSRC/${{ inputs.kernel_subdir }}"
+          BASE="${{ inputs.base_config }}"
+          if [ -n "$BASE" ]; then
+            echo "基线: $BASE"
+            cp "$BASE" "$OUT/.config"
+          else
+            echo "基线: defconfig ${{ inputs.defconfig }}"
+            make $MAKE_ARGS "${{ inputs.defconfig }}"
+          fi
           ARCH=arm64 scripts/kconfig/merge_config.sh -m -O "$OUT" "$OUT/.config" \
             "$GITHUB_WORKSPACE/config/docker-android.fragment"
           make $MAKE_ARGS olddefconfig
-          grep -E '^CONFIG_LOCALVERSION|^CONFIG_(USER_NS|PID_NS|IPC_NS|CGROUP_DEVICE)' "$OUT/.config" || true
+          grep -E '^CONFIG_(LOCALVERSION|USER_NS|PID_NS|IPC_NS|CGROUP_DEVICE|ANDROID_PARANOID|OPPO_CHARGER|QPNP_SMB5)' "$OUT/.config" || true
 
       - name: 校验配置
         run: bash "$GITHUB_WORKSPACE/scripts/verify-config.sh" "$OUT/.config"
