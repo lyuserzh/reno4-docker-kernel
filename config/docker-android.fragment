@@ -1,4 +1,7 @@
 # Docker 支持补丁 —— 基于从机内 4.19.157 内核里提取的真实 .config
+# 版本串必须与机内模块 vermagic 完全一致：4.19.157-perf+
+CONFIG_LOCALVERSION="-perf+"
+
 CONFIG_UTS_NS=y
 CONFIG_NET_NS=y
 CONFIG_USER_NS=y
