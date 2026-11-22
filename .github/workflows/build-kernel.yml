@@ -90,7 +90,8 @@ jobs:
       - name: 补齐公开源码缺失的 OPPO vendor 头
         run: |
           set -euo pipefail
-          TOP=/home/runner/work
+          # init/main.c 里是 ../../../../../vendor/...，从 init/ 往上 5 层 = workspace 的上一级
+          TOP=$(dirname "$GITHUB_WORKSPACE")
           sudo mkdir -p "$TOP/vendor/oppo/oppo_phoenix/kernel/oppo_phoenix"
           # 仓库自带的 vendor/{qcom,oppo_euclid} 供其它 #include "../../../../../vendor/..." 用
           for d in "$KSRC"/vendor/*; do
@@ -110,7 +111,9 @@ jobs:
           static void (*phx_set_boot_stage)(int) = 0;
           #endif /* _OPPO_PHOENIX_H */
           HDR
-          ls -l "$TOP/vendor" && head -3 "$TOP/vendor/oppo/oppo_phoenix/kernel/oppo_phoenix/oppo_phoenix.h"
+          echo "TOP=$TOP"
+          ls -l "$TOP/vendor"
+          head -3 "$TOP/vendor/oppo/oppo_phoenix/kernel/oppo_phoenix/oppo_phoenix.h"
 
       - name: 对齐内核版本号（vermagic 必须与机内模块一致）
         working-directory: ${{ github.workspace }}
