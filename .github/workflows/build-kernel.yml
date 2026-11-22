@@ -121,6 +121,10 @@ jobs:
             sed -i '1i #include <linux/uaccess.h>' "$U"
             echo "已补 include: oppo_secure_common.c"
           fi
+          # 充电驱动按 ../../../../../../vendor/oppo_charger/... 引用，源码里在 drivers/power/oppo/charger_ic
+          mkdir -p "$KSRC/vendor/oppo_charger/oppo"
+          ln -sfn "$K/drivers/power/oppo/charger_ic" "$KSRC/vendor/oppo_charger/oppo/charger_ic"
+          ls -l "$KSRC/vendor/oppo_charger/oppo/"
 
       - name: 对齐内核版本号（vermagic 必须与机内模块一致）
         working-directory: ${{ github.workspace }}
