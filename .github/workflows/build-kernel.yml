@@ -51,7 +51,7 @@ jobs:
       TC: ${{ github.workspace }}/toolchain
       OUT: ${{ github.workspace }}/out
       KSRC: ${{ github.workspace }}/ksrc
-      KCFLAGS: '-Wno-error -Wno-implicit-function-declaration -Wno-implicit-int -Wno-strict-prototypes -Wno-incompatible-pointer-types -include linux/uaccess.h'
+      KCFLAGS: '-Wno-error -Wno-implicit-function-declaration -Wno-implicit-int -Wno-strict-prototypes -Wno-incompatible-pointer-types'
       MAKE_ARGS: >-
         O=${{ github.workspace }}/out ARCH=arm64
         CC=clang CLANG_TRIPLE=aarch64-linux-gnu-
@@ -142,8 +142,8 @@ jobs:
           while IFS= read -r f; do
             sed -i '1i #include <linux/uaccess.h>' "$f"
             fixed=$((fixed+1))
-          done < <(grep -rl --include='*.c' -E 'copy_to_user|copy_from_user' "$K/drivers" 2>/dev/null | xargs grep -L 'linux/uaccess.h' 2>/dev/null || true)
-          echo "补 uaccess.h 的文件数: $fixed"
+          done < <(grep -rl --include='*.c' -E 'copy_to_user|copy_from_user' "$K/drivers" 2>/dev/null || true)
+          echo "强制补 uaccess.h 的文件数: $fixed"
 
 
 
