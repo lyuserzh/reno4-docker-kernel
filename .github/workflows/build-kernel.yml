@@ -87,6 +87,31 @@ jobs:
           git clone --depth=1 --branch "${{ inputs.kernel_branch }}" "${{ inputs.kernel_repo }}" "$KSRC"
           ls "$KSRC/${{ inputs.kernel_subdir }}/arch/arm64/configs/vendor/"
 
+      - name: 补齐公开源码缺失的 OPPO vendor 头
+        run: |
+          set -euo pipefail
+          TOP=/home/runner/work
+          sudo mkdir -p "$TOP/vendor/oppo/oppo_phoenix/kernel/oppo_phoenix"
+          # 仓库自带的 vendor/{qcom,oppo_euclid} 供其它 #include "../../../../../vendor/..." 用
+          for d in "$KSRC"/vendor/*; do
+            [ -d "$d" ] && sudo ln -sfn "$d" "$TOP/vendor/$(basename "$d")" || true
+          done
+          # 公开源码没带 oppo_phoenix 模块，init/main.c 只用它记录 boot stage，补个空实现
+          sudo tee "$TOP/vendor/oppo/oppo_phoenix/kernel/oppo_phoenix/oppo_phoenix.h" >/dev/null <<'HDR'
+          #ifndef _OPPO_PHOENIX_H
+          #define _OPPO_PHOENIX_H
+          /* 公开源码缺失，按 init/main.c 的用法补最小桩：phoenix 只是另一个项目的 boot stage 打点 */
+          enum {
+              KERNEL_LOCAL_IRQ_ENABLE = 0,
+              KERNEL_DRIVER_INIT_DONE,
+              KERNEL_INIT_DONE,
+              KERNEL_DO_BASIC_SETUP_DONE,
+          };
+          static void (*phx_set_boot_stage)(int) = 0;
+          #endif /* _OPPO_PHOENIX_H */
+          HDR
+          ls -l "$TOP/vendor" && head -3 "$TOP/vendor/oppo/oppo_phoenix/kernel/oppo_phoenix/oppo_phoenix.h"
+
       - name: 对齐内核版本号（vermagic 必须与机内模块一致）
         working-directory: ${{ github.workspace }}
         run: |
