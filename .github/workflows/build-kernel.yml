@@ -12,10 +12,10 @@ on:
       kernel_subdir:
         required: true
         default: 'kernel/msm-4.19'
-      merge_stable:
-        description: '合并到哪个 stable 版本（留空=不合并，机内模块会不匹配）'
-        required: false
-        default: 'v4.19.157'
+      force_sublevel:
+        description: '强制对齐的内核次版本号（机内是 157，保证 vermagic 一致）'
+        required: true
+        default: '157'
       base_config:
         required: true
         default: 'config/reno4-4.19.157-working.config'
@@ -86,21 +86,17 @@ jobs:
           git clone --depth=1 --branch "${{ inputs.kernel_branch }}" "${{ inputs.kernel_repo }}" "$KSRC"
           ls "$KSRC/${{ inputs.kernel_subdir }}/arch/arm64/configs/vendor/"
 
-      - name: 合并 stable（决定 vermagic 能否匹配机内模块）
-        if: inputs.merge_stable != ''
+      - name: 对齐内核版本号（vermagic 必须与机内模块一致）
         working-directory: ${{ github.workspace }}
         run: |
           set -euo pipefail
           cd "$KSRC/${{ inputs.kernel_subdir }}"
-          git config user.email ci@local && git config user.name ci
-          git fetch --depth=200 https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git "refs/tags/${{ inputs.merge_stable }}:refs/tags/${{ inputs.merge_stable }}" || \
-          git fetch --depth=200 https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git "refs/tags/${{ inputs.merge_stable }}"
-          git merge --no-edit "FETCH_HEAD" || {
-            echo "::warning::merge 有冲突，列出冲突文件后按 OPPO/VENDOR_EDIT 侧保留"
-            git diff --name-only --diff-filter=U
-            exit 1
-          }
-          grep -E '^(VERSION|PATCHLEVEL|SUBLEVEL)' Makefile | head -3
+          echo "改之前:"; grep -E '^(VERSION|PATCHLEVEL|SUBLEVEL) =' Makefile
+          sed -i -E 's/^SUBLEVEL = .*/SUBLEVEL = ${{ inputs.force_sublevel }}/' Makefile
+          echo "改之后:"; grep -E '^(VERSION|PATCHLEVEL|SUBLEVEL) =' Makefile
+          # OPPO 仓库是压缩后的单提交历史，无法与 linux-stable 做 git merge（unrelated histories），
+          # 这里只对齐版本号：vermagic 由 Makefile 版本 + LOCALVERSION 决定，模块加载只看这个字符串。
+          echo "预期 UTS_RELEASE: $(grep -E '^SUBLEVEL' Makefile | grep -oE '[0-9]+') 见 LOCALVERSION"
 
       - name: 生成配置（真实可用配置 + Docker 补丁）
         working-directory: ${{ github.workspace }}
