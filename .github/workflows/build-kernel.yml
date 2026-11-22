@@ -130,6 +130,14 @@ jobs:
           mkdir -p "$KSRC/vendor/oppo_charger/oppo"
           ln -sfn "$K/drivers/power/oppo/charger_ic" "$KSRC/vendor/oppo_charger/oppo/charger_ic"
           ls -l "$KSRC/vendor/oppo_charger/oppo/"
+          # OPPO 把 qcom 自家 smb5-lib.o 从 Makefile 注释掉了，但 schgm-flash.o 还留着，
+          # 它引用的 smblib_* 就没人提供 -> 链接失败。按他们自己的思路把这个尾巴去掉。
+          Q="$K/drivers/power/supply/qcom/Makefile"
+          if grep -q 'schgm-flash\.o' "$Q"; then
+            sed -i 's/ schgm-flash\.o//g' "$Q"
+            echo "已移除 schgm-flash.o"
+          fi
+
 
       - name: 对齐内核版本号（vermagic 必须与机内模块一致）
         working-directory: ${{ github.workspace }}
