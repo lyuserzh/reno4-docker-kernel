@@ -1,0 +1,171 @@
+name: build-reno4-docker-kernel
+
+on:
+  workflow_dispatch:
+    inputs:
+      kernel_repo:
+        required: true
+        default: 'https://github.com/oppo-source/Reno4-5G'
+      kernel_branch:
+        required: true
+        default: 'main'
+      kernel_subdir:
+        required: true
+        default: 'kernel/msm-4.19'
+      merge_stable:
+        description: '合并到哪个 stable 版本（留空=不合并，机内模块会不匹配）'
+        required: false
+        default: 'v4.19.157'
+      base_config:
+        required: true
+        default: 'config/reno4-4.19.157-working.config'
+      boot_img_url:
+        description: '原厂 boot.img 直链（出 boot-docker.img 用）'
+        required: false
+        default: ''
+      ak3_template_url:
+        description: 'AnyKernel3 模板 zip 直链（出可直刷 zip 用）'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  ARCH: arm64
+  LOCALVERSION: '-perf+'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 200
+    env:
+      KBUILD_BUILD_USER: sooxn
+      KBUILD_BUILD_HOST: sooxn-ubuntu
+      KBUILD_BUILD_TIMESTAMP: '2023-12-04 00:00:00'
+      TC: ${{ github.workspace }}/toolchain
+      OUT: ${{ github.workspace }}/out
+      KSRC: ${{ github.workspace }}/ksrc
+      MAKE_ARGS: >-
+        O=${{ github.workspace }}/out ARCH=arm64
+        CC=clang CLANG_TRIPLE=aarch64-linux-gnu-
+        CROSS_COMPILE=aarch64-linux-android-
+        CROSS_COMPILE_ARM32=arm-linux-androideabi-
+        LOCALVERSION=-perf+
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 腾磁盘
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost || true
+          df -h /
+
+      - name: 装依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential bc bison flex libssl-dev libelf-dev cpio rsync \
+            lz4 xz-utils zstd python3 git device-tree-compiler zip
+
+      - name: 拉工具链（clang r416183b + gcc 4.9 binutils）
+        run: |
+          set -euo pipefail
+          mkdir -p "$TC"
+          git clone --depth=1 -q https://github.com/LineageOS/android_prebuilts_clang_kernel_linux-x86_clang-r416183b "$TC/clang"
+          git clone --depth=1 -q https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 "$TC/gcc"
+          git clone --depth=1 -q https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_arm_arm-linux-androideabi-4.9 "$TC/gcc32" || true
+          echo "$TC/clang/bin" >> "$GITHUB_PATH"
+          echo "$TC/gcc/bin" >> "$GITHUB_PATH"
+          echo "$TC/gcc32/bin" >> "$GITHUB_PATH"
+          "$TC/clang/bin/clang" --version | head -2
+
+      - name: 克隆内核源码
+        run: |
+          set -euo pipefail
+          git clone --depth=1 --branch "${{ inputs.kernel_branch }}" "${{ inputs.kernel_repo }}" "$KSRC"
+          ls "$KSRC/${{ inputs.kernel_subdir }}/arch/arm64/configs/vendor/"
+
+      - name: 合并 stable（决定 vermagic 能否匹配机内模块）
+        if: inputs.merge_stable != ''
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          cd "$KSRC/${{ inputs.kernel_subdir }}"
+          git config user.email ci@local && git config user.name ci
+          git fetch --depth=200 https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git "refs/tags/${{ inputs.merge_stable }}:refs/tags/${{ inputs.merge_stable }}" || \
+          git fetch --depth=200 https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git "refs/tags/${{ inputs.merge_stable }}"
+          git merge --no-edit "FETCH_HEAD" || {
+            echo "::warning::merge 有冲突，列出冲突文件后按 OPPO/VENDOR_EDIT 侧保留"
+            git diff --name-only --diff-filter=U
+            exit 1
+          }
+          grep -E '^(VERSION|PATCHLEVEL|SUBLEVEL)' Makefile | head -3
+
+      - name: 生成配置（真实可用配置 + Docker 补丁）
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          export PATH="$TC/clang/bin:$TC/gcc/bin:$PATH"
+          mkdir -p "$OUT"
+          cp "${{ inputs.base_config }}" "$OUT/.config"
+          cd "$KSRC/${{ inputs.kernel_subdir }}"
+          ARCH=arm64 scripts/kconfig/merge_config.sh -m -O "$OUT" "$OUT/.config" \
+            "$GITHUB_WORKSPACE/config/docker-android.fragment"
+          make $MAKE_ARGS olddefconfig
+          grep -E '^CONFIG_LOCALVERSION|^CONFIG_(USER_NS|PID_NS|IPC_NS|CGROUP_DEVICE)' "$OUT/.config" || true
+
+      - name: 校验配置
+        run: bash "$GITHUB_WORKSPACE/scripts/verify-config.sh" "$OUT/.config"
+
+      - name: 编译 Image
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          export PATH="$TC/clang/bin:$TC/gcc/bin:$PATH"
+          cd "$KSRC/${{ inputs.kernel_subdir }}"
+          make $MAKE_ARGS -j"$(nproc)" Image
+          ls -l "$OUT/arch/arm64/boot/Image"
+          strings "$OUT/arch/arm64/boot/Image" | grep -m1 "Linux version"
+
+      - name: 编译模块（可选，CRC 不匹配时一起换）
+        continue-on-error: true
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          export PATH="$TC/clang/bin:$TC/gcc/bin:$PATH"
+          cd "$KSRC/${{ inputs.kernel_subdir }}"
+          make $MAKE_ARGS -j"$(nproc)" modules
+          make $MAKE_ARGS INSTALL_MOD_PATH="$GITHUB_WORKSPACE/modules" modules_install
+          find "$GITHUB_WORKSPACE/modules" -name '*.ko' | wc -l
+          tar -C "$GITHUB_WORKSPACE/modules" -czf "$GITHUB_WORKSPACE/modules.tar.gz" .
+
+      - name: 出 AnyKernel3 直刷包
+        if: inputs.ak3_template_url != ''
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y zip
+          curl -fL "${{ inputs.ak3_template_url }}" -o ak3-template.zip
+          bash scripts/make-ak3.sh ak3-template.zip "$OUT/arch/arm64/boot/Image" reno4-docker-ak3.zip
+          ls -l reno4-docker-ak3.zip
+
+      - name: 出 boot.img
+        if: inputs.boot_img_url != ''
+        run: |
+          set -euo pipefail
+          curl -fL "${{ inputs.boot_img_url }}" -o boot-stock.img
+          git clone --depth=1 -q https://android.googlesource.com/platform/system/tools/mkbootimg mkbootimg-src
+          bash scripts/repack-boot.sh boot-stock.img "$OUT/arch/arm64/boot/Image" boot-docker.img mkbootimg-src
+          ls -l boot-docker.img
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reno4-docker-kernel
+          path: |
+            out/arch/arm64/boot/Image
+            out/.config
+            out/System.map
+            modules.tar.gz
+            reno4-docker-ak3.zip
+            boot-docker.img
+          if-no-files-found: warn
