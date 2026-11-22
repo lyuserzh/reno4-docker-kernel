@@ -22,3 +22,9 @@ CONFIG_OPPO_COMMON_SOFT=y
 CONFIG_SECTION_MISMATCH_WARN_ONLY=y
 # 提供 get_PCB_Version / get_boot_mode 等实现（project_info/）
 CONFIG_OPPO_DEVICE_IFNO=y
+
+# 提供 VOOC / 充电 / crash reason 等实现，否则 gpioblib、schgm-flash 等引用会链接失败
+CONFIG_OPPO_CHARGER=y
+CONFIG_QPNP_SMB5=y
+CONFIG_RECORD_MDMRST=y
+CONFIG_RECORD_SLPIRST=y
