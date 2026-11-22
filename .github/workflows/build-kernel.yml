@@ -58,7 +58,8 @@ jobs:
         CROSS_COMPILE_ARM32=arm-linux-androideabi-
         LOCALVERSION=-perf+
         HOSTCFLAGS=-fcommon
-        KCFLAGS=-Wno-error=implicit-function-declaration -Wno-error=implicit-int -Wno-error=incompatible-pointer-types
+        # OPPO 私有驱动是给 clang 11 写的，clang 12 下各种老写法都会变成 error，统一降级为 warning
+        KCFLAGS=-Wno-error
 
     steps:
       - uses: actions/checkout@v4
