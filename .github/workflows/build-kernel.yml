@@ -52,6 +52,7 @@ jobs:
         CROSS_COMPILE=aarch64-linux-android-
         CROSS_COMPILE_ARM32=arm-linux-androideabi-
         LOCALVERSION=-perf+
+        HOSTCFLAGS=-fcommon
 
     steps:
       - uses: actions/checkout@v4
