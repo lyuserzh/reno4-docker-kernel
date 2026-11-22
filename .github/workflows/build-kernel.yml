@@ -104,6 +104,17 @@ jobs:
           ls -l "$TOP/vendor"
           grep -c KERNEL_ "$TOP/vendor/oppo/oppo_phoenix/kernel/oppo_phoenix/oppo_phoenix.h"
 
+      - name: 补 include 兼容 shim（公开源码挪过路径）
+        run: |
+          set -euo pipefail
+          K="$KSRC/${{ inputs.kernel_subdir }}"
+          # 驱动里还是 #include <soc/qcom/smem.h>，但源码树把它放在 linux/soc/qcom/ 下
+          if [ -f "$K/include/linux/soc/qcom/smem.h" ] && [ ! -f "$K/include/soc/qcom/smem.h" ]; then
+            printf '#include <linux/soc/qcom/smem.h>\n' > "$K/include/soc/qcom/smem.h"
+            echo "已补 shim: include/soc/qcom/smem.h"
+          fi
+          ls -l "$K/include/soc/qcom/smem.h" || true
+
       - name: 对齐内核版本号（vermagic 必须与机内模块一致）
         working-directory: ${{ github.workspace }}
         run: |
