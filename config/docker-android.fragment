@@ -1,0 +1,9 @@
+# Docker 支持补丁 —— 基于从机内 4.19.157 内核里提取的真实 .config
+# 只动 5 行，其它一律不碰
+CONFIG_USER_NS=y
+CONFIG_PID_NS=y
+CONFIG_IPC_NS=y
+CONFIG_CGROUP_DEVICE=y
+
+# Android 的 paranoid network 会按 gid 拦 socket，容器里网络直接不通
+# CONFIG_ANDROID_PARANOID_NETWORK is not set
