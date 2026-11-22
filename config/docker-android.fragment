@@ -12,6 +12,8 @@ CONFIG_POSIX_MQUEUE_SYSCTL=y
 
 CONFIG_OPPO_HEALTHINFO=y
 CONFIG_OPPO_MEM_MONITOR=y
+# 不开这个，oppo_project.h 会在头文件里生成函数体 -> vmlinux 链接多重定义
+CONFIG_OPPO_COMMON_SOFT=y
 
 # Android 的 paranoid network 会按 gid 拦 socket，容器里网络直接不通
 # CONFIG_ANDROID_PARANOID_NETWORK is not set
