@@ -20,3 +20,5 @@ CONFIG_OPPO_COMMON_SOFT=y
 
 # 让 section mismatch 只告警不致命（OPPO 代码里 init/exit 标注本来就不干净）
 CONFIG_SECTION_MISMATCH_WARN_ONLY=y
+# 提供 get_PCB_Version / get_boot_mode 等实现（project_info/）
+CONFIG_OPPO_DEVICE_IFNO=y
